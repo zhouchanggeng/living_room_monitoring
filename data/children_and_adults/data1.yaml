@@ -1,0 +1,9 @@
+path: '/content/drive/MyDrive/KidzCare/data0'
+train: images/train
+val: images/val
+
+nc: 2
+
+names:
+  0: Kid
+  1: Adult

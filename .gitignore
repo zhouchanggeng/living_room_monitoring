@@ -1,0 +1,50 @@
+# ============ Python ============
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+
+# ============ 虚拟环境 ============
+venv/
+.venv/
+env/
+
+# ============ IDE ============
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ============ 训练产物 ============
+runs/
+wandb/
+mlruns/
+.swanlab/
+
+# ============ 数据集图片和缓存 ============
+data/children_and_adults/images/
+data/children_and_adults/labels/*.cache
+
+# ============ 模型权重 ============
+*.pt
+*.onnx
+*.wk
+*.engine
+*.trt
+
+# ============ 压缩包/大文件 ============
+*.zip
+*.tar.gz
+*.tar
+*.rar
+
+# ============ 系统文件 ============
+.DS_Store
+Thumbs.db
+
+# ============ Jupyter ============
+.ipynb_checkpoints/
