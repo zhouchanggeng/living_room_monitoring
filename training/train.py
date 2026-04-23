@@ -10,14 +10,15 @@ from ultralytics import YOLO
 from swanlab.integration.ultralytics import add_swanlab_callback
 
 # ============ 训练配置 ============
-DATA_YAML = "data/children_and_adults/data.yaml"
-MODEL = "yolov8s.pt"          # 预训练权重
+DATA_YAML = "data/sample_1000/data.yaml"
+MODEL = "yolov8s.pt"  # 预训练权重 (ultralytics 自动下载)
 IMGSZ = (384, 640)            # (h, w) - 非正方形输入
 EPOCHS = 100
 BATCH = 16
 DEVICE = "0"                  # GPU id, 多卡用 "0,1"
-PROJECT = "runs/train"
-NAME = "kids_care_yolov8s"
+# 使用绝对路径, 避免受 ~/.config/Ultralytics/settings.yaml 中 runs_dir 影响
+PROJECT = str(Path(__file__).resolve().parent.parent / "runs" / "train")
+NAME = "sample1000_yolov8s"
 
 # 针对海思3519DV500部署的训练优化
 TRAIN_ARGS = dict(
@@ -85,8 +86,12 @@ def main():
     # 开始训练
     results = model.train(**TRAIN_ARGS)
 
-    # 训练完成后验证
-    best_pt = Path(PROJECT) / NAME / "weights" / "best.pt"
+    # 从训练结果中获取最优权重路径
+    best_pt = Path(results.save_dir) / "weights" / "best.pt"
+    if not best_pt.exists():
+        print("[警告] 未找到 best.pt, 跳过验证")
+        return None
+
     print(f"\n训练完成! 最优权重: {best_pt}")
 
     # 在验证集上评估

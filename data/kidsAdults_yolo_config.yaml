@@ -1,8 +1,0 @@
-
-path: '/content/drive/MyDrive/Work_space/Kaushi/Kids_and_Adults_detection/artifact/children_and_adults'# dataset root dir
-train: images/train  # train images (relative to 'path')
-val: images/val  # val images (relative to 'path')
-
-names:
-  0: "Kid"
-  1: "Adult"

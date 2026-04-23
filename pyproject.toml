@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "kids-care-tools"
+version = "0.1.0"
+description = "客厅小孩看护项目工具集"
+requires-python = ">=3.9"
+
+[project.scripts]
+sample_pack = "training.sample_pack:main"
+extract_baby = "training.extract_baby:main"
+crawl_baby = "tools.crawl_baby_images:main"
+
+[tool.setuptools.packages.find]
+include = ["training*", "tools*"]
