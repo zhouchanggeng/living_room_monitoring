@@ -16,6 +16,7 @@ env/
 .vscode/
 .idea/
 .qoder/
+.kiro/
 *.swp
 *.swo
 *~
@@ -26,15 +27,31 @@ wandb/
 mlruns/
 swanlog/
 .swanlab/
-train.log
 
-# ============ 数据集图片 (只保留配置和标注, 不提交图片) ============
+# ============ 日志 ============
+*.log
+
+# ============ 数据集图片 (不提交图片和标注txt) ============
 origin_data/
 crawled_images/
-data/children_and_adults/images/
-data/children_and_adults/labels/*.cache
-data/sample_1000_20260423/train/images/
-data/sample_1000_20260423/val/images/
+labeled_data/
+data/*/train/images/
+data/*/val/images/
+data/*/train/labels/
+data/*/val/labels/
+*.cache
+
+# ============ 标注文件 ============
+*.txt
+!requirements.txt
+
+# ============ 图片 ============
+*.jpg
+*.jpeg
+*.png
+*.bmp
+*.webp
+*.gif
 
 # ============ 模型权重 ============
 *.pt
