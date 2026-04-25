@@ -35,6 +35,7 @@ swanlog/
 origin_data/
 crawled_images/
 labeled_data/
+pending_data/
 data/*/train/images/
 data/*/val/images/
 data/*/train/labels/
