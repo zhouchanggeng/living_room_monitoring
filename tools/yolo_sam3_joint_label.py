@@ -14,7 +14,7 @@ YOLO + SAM3 联合标注: YOLO 提供候选框, SAM3 做验证/补充, 提高标
     python training/yolo_sam3_joint_label.py \
         --source origin_data/sample_1200_new \
         --yolo-weights runs/train/sample1000_yolov8s/weights/best.pt \
-        --sam3-checkpoint models/sam3.pt \
+        --sam3-checkpoint pretrained/sam3.pt \
         --device 0
 """
 
@@ -41,7 +41,7 @@ from sam3.model.sam3_image_processor import Sam3Processor
 IMG_EXTS = {".jpg", ".jpeg", ".png", ".bmp", ".webp"}
 YOLO_CLASSES = {0: "Kid", 1: "Adult"}
 SAM3_PROMPTS = {"child": "Kid", "an adult": "Adult"}
-BPE_PATH = "models/bpe_simple_vocab_16e6.txt.gz"
+BPE_PATH = "pretrained/bpe_simple_vocab_16e6.txt.gz"
 
 
 def parse_args():
@@ -49,7 +49,7 @@ def parse_args():
     p.add_argument("--source", type=str, default="origin_data/sample_1200_new")
     p.add_argument("--yolo-weights", type=str,
                    default="runs/train/sample1000_yolov8s/weights/best.pt")
-    p.add_argument("--sam3-checkpoint", type=str, default="models/sam3.pt")
+    p.add_argument("--sam3-checkpoint", type=str, default="pretrained/sam3.pt")
     p.add_argument("--bpe", type=str, default=BPE_PATH)
     p.add_argument("--yolo-conf", type=float, default=0.25)
     p.add_argument("--sam3-conf", type=float, default=0.3)

@@ -56,17 +56,19 @@ data/*/val/labels/
 
 # ============ 模型权重 ============
 *.pt
+*.pth
 *.onnx
 *.wk
 *.engine
 *.trt
-models/
+pretrained/
 
 # ============ 压缩包/大文件 ============
 *.zip
 *.tar.gz
 *.tar
 *.rar
+*.mp4
 
 # ============ 系统文件 ============
 .DS_Store
