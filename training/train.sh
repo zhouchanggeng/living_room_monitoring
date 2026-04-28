@@ -27,6 +27,12 @@ done
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+# ---------- 日志目录 ----------
+LOG_DIR="${PROJECT_ROOT}/logs"
+mkdir -p "$LOG_DIR"
+TIMESTAMP=$(date +%Y%m%d_%H%M%S)
+LOG_FILE="${LOG_DIR}/train_yolov8s_${TIMESTAMP}.log"
+
 echo "============================================================"
 echo " 客厅小孩看护 - YOLOv8s 训练"
 echo " GPU:    ${GPU_ID}"
@@ -68,7 +74,8 @@ echo "[开始] 训练启动..."
 echo ""
 
 cd "$PROJECT_ROOT"
-python training/train.py
+export KIDSCARE_LOG_BY_SHELL=1
+python training/train.py 2>&1 | tee "$LOG_FILE"
 
 echo ""
 echo "[完成] 训练结束"
@@ -84,3 +91,6 @@ if [ -n "$BEST_PT" ]; then
 else
     echo "[警告] 未找到 best.pt, 跳过 ONNX 导出"
 fi
+
+echo ""
+echo "[日志] 训练日志已保存到: ${LOG_FILE}"

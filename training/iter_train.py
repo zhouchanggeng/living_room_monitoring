@@ -9,6 +9,7 @@
 
 import argparse
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 
@@ -201,8 +202,29 @@ def plot_comparison(results, val_name, save_dir):
     return save_dir
 
 
+class Tee:
+    """同时输出到终端和日志文件."""
+    def __init__(self, log_path):
+        self.terminal = sys.stdout
+        self.log = open(log_path, "w")
+    def write(self, msg):
+        self.terminal.write(msg)
+        self.log.write(msg)
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+
+
 def main():
     args = parse_args()
+
+    # 日志自动保存到 logs/
+    log_dir = PROJECT_ROOT / "logs"
+    log_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_file = log_dir / f"iter_train_{args.name}_{timestamp}.log"
+    sys.stdout = sys.stderr = Tee(log_file)
+    print(f"[日志] 训练日志保存到: {log_file}")
 
     # 1. 训练
     if not args.skip_train:

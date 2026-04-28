@@ -5,6 +5,8 @@
 """
 
 import os
+import sys
+from datetime import datetime
 from pathlib import Path
 from ultralytics import YOLO
 from swanlab.integration.ultralytics import add_swanlab_callback
@@ -58,7 +60,29 @@ TRAIN_ARGS = dict(
 )
 
 
+class Tee:
+    """同时输出到终端和日志文件."""
+    def __init__(self, log_path):
+        self.terminal = sys.stdout
+        self.log = open(log_path, "w")
+    def write(self, msg):
+        self.terminal.write(msg)
+        self.log.write(msg)
+    def flush(self):
+        self.terminal.flush()
+        self.log.flush()
+
+
 def main():
+    # 日志自动保存到 logs/ (通过 shell 脚本调用时由 shell 负责日志, 跳过)
+    if not os.environ.get("KIDSCARE_LOG_BY_SHELL"):
+        log_dir = Path(__file__).resolve().parent.parent / "logs"
+        log_dir.mkdir(parents=True, exist_ok=True)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        log_file = log_dir / f"train_{NAME}_{timestamp}.log"
+        sys.stdout = sys.stderr = Tee(log_file)
+        print(f"[日志] 训练日志保存到: {log_file}")
+
     # 确认数据集路径
     data_path = Path(DATA_YAML)
     if not data_path.exists():
