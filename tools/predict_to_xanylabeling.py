@@ -52,6 +52,8 @@ def parse_args():
     p.add_argument("--device", type=str, default="0")
     p.add_argument("--save-img", action="store_true", default=False,
                    help="是否在JSON中嵌入base64图片(文件会很大)")
+    p.add_argument("--output", type=str, default=None,
+                   help="输出目录 (默认保存在图片同目录)")
     return p.parse_args()
 
 
@@ -101,7 +103,7 @@ def make_shape(label, x1, y1, x2, y2, score):
 
 # ==================== YOLO 推理 ====================
 
-def run_yolo(args, img_files):
+def run_yolo(args, img_files, out_dir):
     from ultralytics import YOLO
 
     model = YOLO(args.weights)
@@ -129,7 +131,8 @@ def run_yolo(args, img_files):
                         CLASS_NAMES.get(cls_id, str(cls_id)),
                         x1, y1, x2, y2, conf))
             annotation = build_xanylabeling_json(img_path, shapes, args.save_img)
-            save_json(img_path.with_suffix(".json"), annotation)
+            json_path = out_dir / (img_path.stem + ".json")
+            save_json(json_path, annotation)
             json_count += 1
         pbar.update(len(batch_paths))
     pbar.close()
@@ -173,7 +176,7 @@ def load_deimv2_model(config_path, weights_path, device):
     return model, img_size, vit_backbone
 
 
-def run_deimv2(args, img_files):
+def run_deimv2(args, img_files, out_dir):
     import torch
     import torchvision.transforms as T
 
@@ -213,7 +216,8 @@ def run_deimv2(args, img_files):
                 x1, y1, x2, y2, conf))
 
         annotation = build_xanylabeling_json(img_path, shapes, args.save_img)
-        save_json(img_path.with_suffix(".json"), annotation)
+        json_path = out_dir / (img_path.stem + ".json")
+        save_json(json_path, annotation)
         json_count += 1
         pbar.update(1)
     pbar.close()
@@ -232,6 +236,23 @@ def main():
     if args.model_type == "deimv2" and not args.config:
         raise ValueError("DEIMv2 模型需要指定 --config 参数")
 
+    out_dir = None
+    if args.output:
+        out_dir = Path(args.output)
+    else:
+        # 自动生成: {source_name}_{model_name}
+        source_name = source_dir.name
+        # 从权重路径提取模型名, 如 runs/train/iter_20260425_yolov8s/weights/best.pt -> iter_20260425_yolov8s
+        weights_path = Path(args.weights)
+        if weights_path.parent.name == "weights":
+            model_name = weights_path.parent.parent.name
+        else:
+            # 直接在训练目录下, 如 runs/train/iter_20260425_deimv2_x/best_stg2.pth
+            model_name = weights_path.parent.name
+        out_dir = source_dir.parent / f"{source_name}_{model_name}"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    print(f"[信息] 输出目录: {out_dir}")
+
     img_files = sorted(
         [f for f in source_dir.iterdir() if f.suffix.lower() in IMG_EXTS]
     )
@@ -241,12 +262,12 @@ def main():
     print(f"[信息] 置信度: {args.conf}")
 
     if args.model_type == "yolo":
-        json_count = run_yolo(args, img_files)
+        json_count = run_yolo(args, img_files, out_dir)
     else:
-        json_count = run_deimv2(args, img_files)
+        json_count = run_deimv2(args, img_files, out_dir)
 
     print(f"\n[完成] 共生成 {json_count} 个 JSON 标注文件")
-    print(f"[信息] 标注保存在: {source_dir}/")
+    print(f"[信息] 标注保存在: {out_dir}/")
     print("[提示] 使用 X-AnyLabeling 打开该目录即可进行人工审核")
 
 
