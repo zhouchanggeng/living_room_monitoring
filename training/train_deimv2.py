@@ -27,12 +27,12 @@ import numpy as np
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DEIMV2_DIR = Path(__file__).resolve().parent / "DEIMv2"
 RUNS_DIR = PROJECT_ROOT / "runs" / "train"
-DATA_DIR = PROJECT_ROOT / "data" / "iter_20260425"
+DATA_DIR = PROJECT_ROOT / "data" / "iter_20260429"
 
 # DEIMv2 配置
 DEIMV2_CONFIG = "configs/deimv2/deimv2_dinov3_x_kids_care.yml"
 PRETRAINED_MODEL = PROJECT_ROOT / "pretrained" / "deimv2_dinov3_x_coco.pth"
-DEIMV2_RUN_DIR = RUNS_DIR / "iter_20260425_deimv2_x"
+DEIMV2_RUN_DIR = RUNS_DIR / "iter_20260429_deimv2_x"
 
 # YOLOv8s 对比基线
 YOLO_DATA_YAML = str(DATA_DIR / "data.yaml")

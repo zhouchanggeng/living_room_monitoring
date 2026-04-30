@@ -1,0 +1,6 @@
+path: /data/zcg/workspace/living_room_monitoring/living_room_monitoring/data/distill_20260430
+train: train/images
+val: val/images
+names:
+  0: Kid
+  1: Adult
