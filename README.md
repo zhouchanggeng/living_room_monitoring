@@ -12,29 +12,28 @@
 │   ├── pseudo_labels_deimv2/   # DEIMv2 生成的伪标签数据
 │   └── distill_20260430/       # 蒸馏训练合并数据集 (真实标注+伪标签)
 ├── training/
-│   ├── train.py                # YOLOv8s 基础训练脚本
-│   ├── iter_train.py           # YOLOv8s 迭代训练脚本
-│   ├── train_deimv2.py         # DEIMv2 教师模型训练脚本
-│   ├── train_deimv2.sh         # DEIMv2 训练启动脚本
-│   ├── generate_pseudo_labels.py  # DEIMv2 伪标签生成 (支持多卡分片)
-│   ├── distill_train.py        # 伪标签半监督蒸馏训练 YOLOv8s
-│   ├── run_distill.sh          # 蒸馏全流程编排脚本 (伪标签生成→训练→评估)
-│   ├── yolo2coco.py            # YOLO 格式转 COCO 格式
+│   ├── train_runner.py         # 统一训练/伪标签/蒸馏入口
+│   ├── train_runner.sh         # 带日志保存的训练入口包装脚本
+│   ├── __init__.py
 │   └── DEIMv2/                 # DEIMv2 子模块
 ├── tools/
 │   ├── crawl_baby_images.py           # 图片爬取
 │   ├── sample_and_predict.py          # 采样与预测
-│   ├── sample_pack.py                 # 采样打包
 │   ├── predict_to_xanylabeling.py     # 预测结果转 X-AnyLabeling 格式
 │   ├── update_labels_from_xanylabeling.py  # X-AnyLabeling 标注回写 YOLO 格式
-│   ├── find_conflicting_labels.py     # 检测冲突标注 (同目标多类别)
+│   ├── active_learning_sample.py      # 主动学习样本筛选
 │   ├── yolo_sam3_joint_label.py       # YOLO+SAM3 联合标注
 │   ├── video_filter.py                # 视频过滤
+│   ├── video_inference.py             # 视频推理
+│   └── yolo2coco.py                   # YOLO 格式转 COCO 格式
+├── demo/
 │   └── ptz_follow_demo.py             # YOLO+ByteTrack 云台跟随仿真 Demo
 ├── runtime/
 │   └── follow_controller.py     # 跟随目标选择、状态机、平滑控制与仿真指令输出
 ├── tests/
-│   └── test_follow_controller.py # 跟随控制器单元测试
+│   ├── test_follow_controller.py       # 跟随控制器单元测试
+│   ├── test_pretrained_paths.py        # 预训练权重路径检查
+│   └── test_training_runner_layout.py  # 训练入口布局检查
 ├── deployment/
 │   └── export_onnx.py          # ONNX 导出脚本
 └── pretrained/                 # 预训练权重
@@ -46,10 +45,12 @@
 
 ```bash
 # YOLOv8s 迭代训练
-python training/iter_train.py
+python3 training/train_runner.py --task iter --data data/iter_20260425/data.yaml --name iter_20260425
 
 # DEIMv2 教师模型训练
-bash training/train_deimv2.sh
+python3 training/train_runner.py --task deimv2 \
+  --config training/DEIMv2/configs/deimv2/deimv2_dinov3_x_kids_care.yml \
+  --device 0,1
 ```
 
 ### 2. 伪标签蒸馏训练
@@ -58,13 +59,15 @@ bash training/train_deimv2.sh
 
 ```bash
 # 全流程一键运行 (伪标签生成 → 合并数据 → 蒸馏训练 → 对比评估)
-bash training/run_distill.sh
+bash training/train_runner.sh --task distill-pipe --infer-gpus 0,1 --train-gpus 0,1
 
 # 或分步执行:
-python training/generate_pseudo_labels.py   # 生成伪标签
-python training/distill_train.py            # 蒸馏训练
-python training/distill_train.py --skip-train  # 仅对比评估
+python3 training/train_runner.py --task pseudo    # 生成伪标签
+python3 training/train_runner.py --task distill   # 蒸馏训练
+python3 training/train_runner.py --task distill --skip-train  # 仅对比评估
 ```
+
+更多任务和参数见 `docs/training_scripts_usage.md`。
 
 ### 3. 导出部署
 
@@ -75,11 +78,11 @@ python deployment/export_onnx.py --weights runs/train/<run_name>/weights/best.pt
 ## 数据工具
 
 ```bash
-# 检测冲突标注
-python tools/find_conflicting_labels.py --labels-dir data/iter_20260429/train/labels --images-dir data/iter_20260429/train/images
-
 # 将 X-AnyLabeling 修正后的标注更新到数据集
 python tools/update_labels_from_xanylabeling.py --src labeled_data/kidadult-20260424 --dst data/iter_20260425
+
+# YOLO 格式转 COCO 格式
+python tools/yolo2coco.py --help
 ```
 
 ## 云台跟随算法骨架
@@ -99,7 +102,7 @@ SEARCH : 目标超时丢失，输出低速扫描方向
 离线调试示例：
 
 ```bash
-python3 tools/ptz_follow_demo.py \
+python3 demo/ptz_follow_demo.py \
   --weights runs/train/distill_20260508_yolov8s_lr001/weights/best.pt \
   --source /data/zcg/workspace/data/video/test_video/2714_time.mp4 \
   --output child.mp4 \
