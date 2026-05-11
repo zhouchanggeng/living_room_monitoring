@@ -29,7 +29,12 @@
 │   ├── update_labels_from_xanylabeling.py  # X-AnyLabeling 标注回写 YOLO 格式
 │   ├── find_conflicting_labels.py     # 检测冲突标注 (同目标多类别)
 │   ├── yolo_sam3_joint_label.py       # YOLO+SAM3 联合标注
-│   └── video_filter.py               # 视频过滤
+│   ├── video_filter.py                # 视频过滤
+│   └── ptz_follow_demo.py             # YOLO+ByteTrack 云台跟随仿真 Demo
+├── runtime/
+│   └── follow_controller.py     # 跟随目标选择、状态机、平滑控制与仿真指令输出
+├── tests/
+│   └── test_follow_controller.py # 跟随控制器单元测试
 ├── deployment/
 │   └── export_onnx.py          # ONNX 导出脚本
 └── pretrained/                 # 预训练权重
@@ -75,6 +80,66 @@ python tools/find_conflicting_labels.py --labels-dir data/iter_20260429/train/la
 
 # 将 X-AnyLabeling 修正后的标注更新到数据集
 python tools/update_labels_from_xanylabeling.py --src labeled_data/kidadult-20260424 --dst data/iter_20260425
+```
+
+## 云台跟随算法骨架
+
+核心逻辑在 `runtime/follow_controller.py`。YOLO 只负责输出检测框，ByteTrack 负责给目标分配稳定 `track_id`，跟随控制器负责锁定同一个目标、按 `adult | child | auto` 选择跟随对象、短时丢失保持、超时搜索恢复、死区防抖、低通滤波，并返回模拟云台应该往哪边转动的坐标值。
+
+状态机：
+
+```text
+IDLE   : 没有目标，模拟云台不动
+ACQUIRE: 发现目标，准备锁定
+TRACK  : 稳定跟随当前 track_id
+HOLD   : 目标短时丢失，保留最后锁定目标
+SEARCH : 目标超时丢失，输出低速扫描方向
+```
+
+离线调试示例：
+
+```bash
+python3 tools/ptz_follow_demo.py \
+  --weights runs/train/distill_20260508_yolov8s_lr001/weights/best.pt \
+  --source /data/zcg/workspace/data/video/test_video/2714_time.mp4 \
+  --output child.mp4 \
+  --follow-mode child
+```
+
+`--follow-mode` 可选：
+
+```text
+adult: 只跟随大人
+child: 只跟随小孩
+auto : 大人/小孩都可跟随，优先保持当前锁定 track_id
+```
+
+输出视频会叠加以下调试信息：
+
+```text
+state   : 当前状态机状态
+target  : 当前锁定类别和 track_id
+dir     : 模拟云台转动方向，例如 (right, down)
+delta   : 每帧模拟坐标增量，例如 (0.800, 0.300)
+norm_err: 目标中心相对画面中心的归一化偏移
+```
+
+`FollowController.update()` 返回 `FollowCommand`，主要字段如下：
+
+```text
+direction_x/direction_y : left/right/up/down/stop，表示模拟云台应该往哪边转
+normalized_error_xy     : 目标相对画面中心的归一化偏移，右/下为正，左/上为负
+sim_delta_xy            : 经过低通滤波、死区、PD 控制和限幅后的每帧模拟坐标增量
+target_track_id         : 当前锁定目标 ID
+target_bbox_xyxy        : 当前锁定目标框
+```
+
+简单理解：`norm_err` 表示目标偏离画面中心多少，`delta` 表示模拟云台这一帧应该往哪边动、动多少。
+
+运行跟随控制器测试：
+
+```bash
+python3 -m unittest tests.test_follow_controller
 ```
 
 ## 模型信息
