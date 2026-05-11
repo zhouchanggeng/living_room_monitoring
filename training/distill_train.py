@@ -42,7 +42,7 @@ REAL_DATA_DIR = PROJECT_ROOT / "data" / "iter_20260429"
 PSEUDO_DATA_DIR = PROJECT_ROOT / "data" / "pseudo_labels_deimv2"
 MERGED_DATA_DIR = PROJECT_ROOT / "data" / "distill_20260430"
 
-# 训练配置
+# 训练配置 (根据 output-data 自动推导 RUN_NAME)
 RUN_NAME = "distill_20260430_yolov8s"
 
 
@@ -53,12 +53,18 @@ def parse_args():
     p.add_argument("--output-data", type=str, default=str(MERGED_DATA_DIR))
     p.add_argument("--pseudo-ratio", type=float, default=1.0,
                    help="使用伪标签数据的比例 (0-1), 1.0=全部使用")
+    p.add_argument("--model", type=str, default="yolov8s.pt",
+                   help="模型配置, 如 yolov8s.pt 或 yolov8s-p2.yaml (开启P2小目标检测头)")
+    p.add_argument("--pretrained-weights", type=str, default="yolov8s.pt",
+                   help="预训练权重 (当 --model 为 yaml 配置时, 用于迁移权重)")
     p.add_argument("--epochs", type=int, default=100)
     p.add_argument("--batch", type=int, default=16)
     p.add_argument("--device", type=str, default="0")
     p.add_argument("--resume", action="store_true")
     p.add_argument("--skip-merge", action="store_true", help="跳过数据合并 (已合并过)")
     p.add_argument("--skip-train", action="store_true", help="跳过训练, 仅做对比评估")
+    p.add_argument("--lr0", type=float, default=0.01, help="初始学习率, fine-tune 建议 0.001")
+    p.add_argument("--run-suffix", type=str, default="", help="run_name 额外后缀用于区分多个配置")
     return p.parse_args()
 
 
@@ -165,36 +171,47 @@ def merge_datasets(real_dir, pseudo_dir, output_dir, pseudo_ratio=1.0):
     return str(data_yaml)
 
 
-def train(data_yaml, args):
+def train(data_yaml, args, run_name):
     """训练 YOLOv8s."""
-    run_dir = RUNS_DIR / RUN_NAME
+    run_dir = RUNS_DIR / run_name
 
     if args.resume and (run_dir / "weights" / "last.pt").exists():
         print(f"[恢复训练] {run_dir / 'weights' / 'last.pt'}")
         model = YOLO(str(run_dir / "weights" / "last.pt"))
+    elif args.model.endswith(".yaml"):
+        # 使用 yaml 配置文件定义架构 (如 yolov8s-p2.yaml), 然后迁移预训练权重
+        print(f"[模型架构] {args.model}")
+        print(f"[预训练权重] {args.pretrained_weights}")
+        model = YOLO(args.model)
+        model.load(args.pretrained_weights)
     else:
-        model = YOLO("yolov8s.pt")
+        model = YOLO(args.model)
 
+    # Ultralytics 内置 TensorBoard 支持, 只需确保 tensorboard 已安装
+    # 日志自动写入 runs/train/<run_name>/ 目录
     try:
-        from swanlab.integration.ultralytics import add_swanlab_callback
-        add_swanlab_callback(model, project="KidsCare-YOLOv8s",
-                             experiment_name=RUN_NAME,
-                             description="DEIMv2伪标签半监督蒸馏训练")
+        from torch.utils.tensorboard import SummaryWriter  # noqa: F401
+        print(f"[TensorBoard] 已启用, 日志目录: {run_dir}")
+        print(f"[TensorBoard] 启动命令: tensorboard --logdir {RUNS_DIR}")
     except ImportError:
-        pass
+        print("[警告] tensorboard 未安装, 跳过 TensorBoard 日志")
 
-    model.train(
-        data=data_yaml, imgsz=(384, 640), epochs=args.epochs,
-        batch=args.batch, device=args.device,
-        project=str(RUNS_DIR), name=RUN_NAME,
-        pretrained=True, optimizer="SGD",
-        lr0=0.01, lrf=0.01, momentum=0.937, weight_decay=0.0005,
-        warmup_epochs=3, cos_lr=True,
-        hsv_h=0.015, hsv_s=0.7, hsv_v=0.4,
-        translate=0.1, scale=0.5, fliplr=0.5,
-        mosaic=1.0, mixup=0.1,
-        save=True, save_period=10, val=True, plots=True, exist_ok=True,
-    )
+    # resume=True 时 Ultralytics 从 last.pt 的实际 epoch 续训, 其他超参自动从原 args.yaml 加载
+    if args.resume and (run_dir / "weights" / "last.pt").exists():
+        model.train(resume=True)
+    else:
+        model.train(
+            data=data_yaml, imgsz=(384, 640), epochs=args.epochs,
+            batch=args.batch, device=args.device,
+            project=str(RUNS_DIR), name=run_name,
+            pretrained=True, optimizer="SGD",
+            lr0=args.lr0, lrf=0.01, momentum=0.937, weight_decay=0.0005,
+            warmup_epochs=3, cos_lr=True,
+            hsv_h=0.015, hsv_s=0.7, hsv_v=0.4,
+            translate=0.1, scale=0.5, fliplr=0.5,
+            mosaic=1.0, mixup=0.1,
+            save=True, save_period=10, val=True, plots=True, exist_ok=True,
+        )
 
     best_pt = run_dir / "weights" / "best.pt"
     if not best_pt.exists():
@@ -207,7 +224,7 @@ def evaluate_all(val_data_yaml, device="0"):
     results = {}
     for d in sorted(RUNS_DIR.iterdir()):
         bp = d / "weights" / "best.pt"
-        if bp.exists() and d.name.startswith(("iter_", "distill_")) and "yolov8s" in d.name:
+        if bp.exists() and d.name.startswith(("iter_", "distill_")) and ("yolov8s" in d.name or "yolov8" in d.name):
             name = d.name.replace("_yolov8s", "")
             print(f"\n  评估 {name}: {bp}")
             model = YOLO(str(bp))
@@ -310,24 +327,31 @@ def main():
         if not Path(data_yaml).exists():
             data_yaml = str(REAL_DATA_DIR / "data.yaml")
 
+    # 根据 output-data 和模型类型推导 run_name
+    model_suffix = "yolov8s_p2" if "p2" in args.model.lower() else "yolov8s"
+    run_name = Path(args.output_data).name + "_" + model_suffix
+    if args.run_suffix:
+        run_name = run_name + "_" + args.run_suffix.lstrip("_")
+
     # 2. 训练
     if not args.skip_train:
         print("\n" + "=" * 60)
         print(" Step 2: YOLOv8s 蒸馏训练")
         print(f"  数据集: {data_yaml}")
+        print(f"  运行名: {run_name}")
         print("=" * 60)
-        best_pt = train(data_yaml, args)
+        best_pt = train(data_yaml, args, run_name)
         print(f"\n训练完成! best.pt: {best_pt}")
 
     # 3. 对比评估 (使用原始验证集)
     print("\n" + "=" * 60)
     print(" Step 3: 模型对比评估")
     print("=" * 60)
-    val_yaml = str(REAL_DATA_DIR / "data.yaml")
+    val_yaml = str(Path(args.real_data) / "data.yaml")
     results = evaluate_all(val_yaml, args.device)
 
     if results:
-        save_dir = RUNS_DIR / RUN_NAME / "comparison"
+        save_dir = RUNS_DIR / run_name / "comparison"
         plot_comparison(results, save_dir)
         print(f"\n图表已保存到: {save_dir}/")
 

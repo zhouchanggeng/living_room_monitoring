@@ -102,7 +102,8 @@ def collect_images(input_dir, exclude_dirs=None):
                 exclude_names |= {f.name for f in d.iterdir() if f.suffix.lower() in IMG_EXTS}
     print(f"排除已有图片: {len(exclude_names)} 张")
 
-    input_path = Path(input_dir)
+    # 转换为绝对路径, 保证后续 symlink 目标是绝对路径, 可跨目录访问
+    input_path = Path(input_dir).resolve()
     candidates = sorted([
         f for f in input_path.iterdir()
         if f.suffix.lower() in IMG_EXTS and f.name not in exclude_names
